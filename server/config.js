@@ -1,7 +1,7 @@
 
 // modify this!!!
 module.exports = {
-    db: null,
-    port: null,
-    secret: null
+    db: "mongodb://127.0.0.1:27017/mernstarter",
+    port: 5000,
+    secret: "mysecretkey123"
 }

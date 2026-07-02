@@ -1,5 +1,5 @@
 const jwt = require('jwt-simple');
-const bcrypt = require('bcrypt-nodejs');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const {secret} = require('../config');
 
@@ -24,28 +24,30 @@ exports.signin = function(req, res, next) {
 
 
 // route callback for signing up:
-exports.signup = function(req, res, next) {
-    // extract email and password from the body
-    const {username, email, password} = req.body;
+exports.signup = async function(req, res, next) {
+    try {
+        const { username, email, password } = req.body;
 
-    if(!username || !email || !password) {
-        return res.status(422).send({error: 'Email and password must be provided!'});
-    }
-
-    User.findOne({username: username})
-        .then(user => {
-            if(user) {
-                res.status(422).send({error: 'Username is already in use!'});
-            }
-        })
-
-    User.findOne({email: email}, function(err, existingUser) {
-        if(err) {
-            return next(err);
+        if (!username || !email || !password) {
+            return res.status(422).send({
+                error: "Username, email and password are required!"
+            });
         }
 
-        if(existingUser) {
-            return res.status(422).send({error: 'Email is already in use!'});
+        const usernameExists = await User.findOne({ username });
+
+        if (usernameExists) {
+            return res.status(422).send({
+                error: "Username is already in use!"
+            });
+        }
+
+        const existingUser = await User.findOne({ email });
+
+        if (existingUser) {
+            return res.status(422).send({
+                error: "Email is already in use!"
+            });
         }
 
         const user = new User({
@@ -54,47 +56,54 @@ exports.signup = function(req, res, next) {
             password
         });
 
-        user.save()
-            .then(() => res.json({token: tokenForUser(user), username: user.username}))
-            .catch((err) => next(err));
-    });
-}
+        await user.save();
 
+        res.json({
+            token: tokenForUser(user),
+            username: user.username
+        });
 
-exports.changePassword = function(req, res, next) {
-    const {currentPassword, newPassword} = req.body;
-    User.findById(req.user._id)
-        .then((user) => {
-            user.comparePasswords(currentPassword, function(err, isMatch) {
-                if(err) {
-                    console.log(err);
-                    return err;
-                }
+    } catch (err) {
+        next(err);
+    }
+};
 
-                if(!isMatch) {
-                    res.status(422).send({error: 'Wrong password!'})
-                }
+exports.changePassword = async function (req, res, next) {
+    try {
+        const { currentPassword, newPassword } = req.body;
 
-                bcrypt.genSalt(10, function(err, salt) {
-                    if(err) {
-                        return err;
-                    }
+        const user = await User.findById(req.user._id);
 
-                    bcrypt.hash(newPassword, salt, null, function(err, hash) {
-                        if(err) {
-                            return err;
-                        }
+        if (!user) {
+            return res.status(404).send({ error: "User not found" });
+        }
 
-                        user.update({password: hash})
-                            .then(() => res.json({message: 'Successfully changed password!'}))
-                        
-                    })
-                })
+        user.comparePasswords(currentPassword, async (err, isMatch) => {
+            if (err) {
+                return next(err);
+            }
 
-            })
-        })
-}
+            if (!isMatch) {
+                return res.status(422).send({
+                    error: "Current password is incorrect!"
+                });
+            }
 
+            // Just assign the new password
+            user.password = newPassword;
+
+            // pre('save') hook will hash it automatically
+            await user.save();
+
+            res.json({
+                message: "Password changed successfully!"
+            });
+        });
+
+    } catch (err) {
+        next(err);
+    }
+};
 
 exports.editInfo = function(req, res, next) {
     const {fullname, address, city, country} = req.body;

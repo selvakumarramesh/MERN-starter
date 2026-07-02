@@ -12,9 +12,9 @@ const app = express();
 mongoose.Promise = global.Promise;
 
 // connecting to the db
-mongoose.connect(db, {
-    useMongoClient: true
-});
+mongoose.connect(db)
+    .then(() => console.log("MongoDB Connected"))
+    .catch(err => console.log(err));
 
 // use express middlewares
 app.use(morgan('combined'));

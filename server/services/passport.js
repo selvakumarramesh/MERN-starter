@@ -1,58 +1,60 @@
-const passport = require('passport');
-const User = require('../models/User');
-const JwtStrategy = require('passport-jwt').Strategy;
-const {ExtractJwt} = require('passport-jwt');
-const LocalStrategy = require('passport-local');
-const {secret} = require('../config');
+const passport = require("passport");
+const User = require("../models/User");
+const JwtStrategy = require("passport-jwt").Strategy;
+const { ExtractJwt } = require("passport-jwt");
+const LocalStrategy = require("passport-local").Strategy;
+const { secret } = require("../config");
 
+// Local Strategy
+const localOptions = {
+    usernameField: "email"
+};
 
-// setting local strategy:
-const localOptions = {usernameField: 'email'};
-const localLogin = new LocalStrategy(localOptions, function(email, password, done) {
-    User.findOne({email: email}, function(err, user) {
-        if(err) {
-            return done(err);
-        }
+const localLogin = new LocalStrategy(localOptions, async (email, password, done) => {
+    try {
+        const user = await User.findOne({ email });
 
-        if(!user) {
+        if (!user) {
             return done(null, false);
         }
 
-        user.comparePasswords(password, function(err, isMatch) {
-            if(err) {
+        user.comparePasswords(password, (err, isMatch) => {
+            if (err) {
                 return done(err);
             }
 
-            if(!isMatch) {
+            if (!isMatch) {
                 return done(null, false);
             }
 
             return done(null, user);
         });
-    });
+
+    } catch (err) {
+        return done(err);
+    }
 });
 
-
-
-// setting the jwt strategy
+// JWT Strategy
 const jwtOptions = {
-    jwtFromRequest: ExtractJwt.fromHeader('authorization'),
+    jwtFromRequest: ExtractJwt.fromHeader("authorization"),
     secretOrKey: secret
 };
 
-const jwtLogin = new JwtStrategy(jwtOptions, function(payload, done) {
-    User.findById(payload.sub)
-        .then((user) => {
-            if(user) {
-                done(null, user);
-            } else {
-                done(null, false);
-            }
-        })
-        .catch((err) => done(err, false));
+const jwtLogin = new JwtStrategy(jwtOptions, async (payload, done) => {
+    try {
+        const user = await User.findById(payload.sub);
+
+        if (!user) {
+            return done(null, false);
+        }
+
+        return done(null, user);
+
+    } catch (err) {
+        return done(err, false);
+    }
 });
 
-
-// tell passport to use defined strategies:
 passport.use(jwtLogin);
 passport.use(localLogin);
